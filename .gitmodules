@@ -1,0 +1,3 @@
+[submodule "tree-sitter-pddl"]
+	path = tree-sitter-pddl
+	url = https://github.com/lucascool12/tree-sitter-pddl.git
