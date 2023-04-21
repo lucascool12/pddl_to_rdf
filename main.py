@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Dict, TypeAlias, Tuple, Union
+from typing import Callable, Dict, TypeAlias, Tuple, Union, List
 from tree_sitter import Language, Parser, TreeCursor, Node
 from pyoxigraph import Store, NamedNode, BlankNode, Quad, Literal
 from dataclasses import dataclass
@@ -8,6 +8,7 @@ from collections import deque
 import rdflib
 import rdflib.namespace as rdfnamespace
 import oxrdflib
+import argparse
 
 BUILD_LIB = 'build/langs.so'
 
@@ -21,57 +22,105 @@ PDDL = Language(BUILD_LIB, "pddl")
 
 ont = "http://example.com/pddl_ont/"
 rdf_type = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+rdf_value = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#value")
 xsd_decimal = NamedNode("http://www.w3.org/2001/XMLSchema#decimal")
 
 IdentifiedNode: TypeAlias = "BlankNode | NamedNode"
 GraphNode: TypeAlias = "BlankNode | NamedNode | Literal"
-keywords_alias: TypeAlias = Dict[str,
+keywords_alias: TypeAlias = """Dict[str,
                                  Tuple[
                                      str,
                                      Callable[
-                                         [Node, Node, str],
-                                         Tuple[NamedNode, Union[None, GraphNode]]
+                                         [Node, Node, LatestNode, str],
+                                         Tuple[
+                                            NamedNode,
+                                            Union[None, GraphNode],
+                                            List[Tuple[Quad, bool]]
+                                            ]
                                      ]]
-                                 ]
+                                 ]"""
 
 def keyword_pred_and_bn(parent_name: Node,
                         node: Node,
+                        latest: LatestNode,
                         namespace: str,
                         *,
-                        keyword_pred: str) -> Tuple[NamedNode, GraphNode]:
+                        keyword_pred: str)\
+        -> Tuple[NamedNode, GraphNode | None, List[Tuple[Quad, bool]]]:
     key_word = get_text(parent_name)
+    key_word = keywords[key_word][0]
     if parent_name == node:
-        return (ontology_named(ont, keyword_pred), BlankNode())
+        quads = list()
+        bn1 = BlankNode()
+        bn2 = BlankNode()
+        quads.append((Quad(
+            bn2,
+            ontology_named(ont, key_word),
+            bn1
+        ), True))
+        return (ontology_named(ont, key_word), bn2, quads)
     else:
-        return (ontology_named(ont, keywords[key_word][0]),
-                NamedNode(namespace + get_text(node)))
+        text = get_text(node)
+        if text in keywords:
+            graph_node = keywords[text][1](node, node, latest, namespace)
+            return (rdf_value, graph_node[1], graph_node[2])
+        else:
+            graph_node = NamedNode(namespace + text)
+        return (rdf_value, graph_node, [])
 
 def numeric_effect(parent_name: Node,
                    node: Node,
-                   namespace: str) -> Tuple[NamedNode, GraphNode]:
+                   latest: LatestNode,
+                   namespace: str) -> Tuple[NamedNode, GraphNode, List[Tuple[Quad, bool]]]:
     key_word = get_text(parent_name)
+    key_word = keywords[key_word][0]
     if parent_name == node:
-        return (ontology_named(ont, "numericEffect"), BlankNode())
+        quads = list()
+        bn1 = BlankNode()
+        bn2 = BlankNode()
+        quads.append((Quad(
+            bn2,
+            ontology_named(ont, key_word),
+            bn1
+        ), True))
+        return (ontology_named(ont, key_word), bn2, quads)
+    elif next(latest.store.quads_for_pattern(
+        latest.current,
+        rdf_value,
+        None), None) is None:
+        text = get_text(node)
+        try:
+            float(text)
+            number = True
+        except ValueError:
+            number = False
+        if number:
+            amount_node: GraphNode = Literal(text, datatype=xsd_decimal)
+        else:
+            amount_node = NamedNode(namespace + text)
+        pred = rdf_value
+        print(pred)
+        return (pred, amount_node, [])
     else:
         text = get_text(node)
         try:
-            amount = float(text)
+            float(text)
+            number = True
         except ValueError:
-            raise Exception(
-                f"numeric effect amount is not a number on: {node.start_point}"
-            )
-        amount_node = Literal(str(amount), datatype=xsd_decimal)
+            number = False
+        if number:
+            amount_node = Literal(text, datatype=xsd_decimal)
+        else:
+            amount_node = NamedNode(namespace + text)
         pred = ontology_named(ont, "with")
-        print(pred)
-        return (pred, amount_node)
+        return (pred, amount_node, [])
 
-
-def change_name(parent_name: Node,
+def no_node(parent_name: Node,
             node: Node,
-            namespace: str) -> Tuple[NamedNode, None]:
+            latest: LatestNode,
+            namespace: str) -> Tuple[NamedNode, None, List[Tuple[Quad, bool]]]:
     key_word = get_text(parent_name)
-    return (ontology_named(ont, key_word), None)
-
+    return (ontology_named(ont, key_word), None, [])
 
 logical_fn = partial(keyword_pred_and_bn, keyword_pred="logicalExpression")
 arithmetic_fn = partial(keyword_pred_and_bn, keyword_pred="arithmeticExpression")
@@ -93,9 +142,9 @@ keywords: keywords_alias = {
     "assign": ("assign", numeric_effect),
     "scale-up": ("scale-up", numeric_effect),
     "scale-down": ("scale-down", numeric_effect),
-    ":parameters": ("parameters", change_name),
-    ":precondition": ("precondition", change_name),
-    ":effect": ("effect", change_name),
+    ":parameters": ("parameters", no_node),
+    ":precondition": ("precondition", no_node),
+    ":effect": ("effect", no_node),
 }
 
 
@@ -109,8 +158,6 @@ def walk_treecursor(cursor: TreeCursor, callback: Callable[[Node, int], None]):
     depth = 0
     while True:
         callback(cursor.node, depth)
-        print(cursor.node.type)
-        # print(get_text(cursor.node))
         if not cursor.goto_first_child():
             if cursor.goto_next_sibling():
                 continue
@@ -153,45 +200,50 @@ class LatestNode:
         self.depth = depth
 
     def pop(self):
-        for _ in range(0, self.amount_on_depth[-1]):
-            self.current = self.prev_current.pop()
-        self.amount_on_depth.pop()
+        if len(self.amount_on_depth) != 0:
+            for _ in range(0, self.amount_on_depth[-1]):
+                self.current = self.prev_current.pop()
+            self.amount_on_depth.pop()
 
 
 def translate_walk(node: Node,
                      depth: int,
                      *,
-                     parent: LatestNode,
+                     latest: LatestNode,
                      namespace: str):
     if node.parent is None or not node.is_named or node.type == "comment":
-        parent.new_depth(depth)
+        latest.new_depth(depth)
         return
     # for _ in range(depth, parent.depth):
     #     parent.pop()
-    parent.new_depth(depth)
+    latest.new_depth(depth)
     parent_stat = get_parent_statement(node)
     state_first = statement_first(parent_stat)
     type = get_type(node.parent)
     # if node == node.parent.named_children[0]:
     #     pass
     if node.type == "name":
-        print(get_pred(node, namespace))
-        pred = get_pred(node, namespace)
-        graph_node = get_graph_node(node, namespace)
+        # print(get_pred(node, latest, namespace))
+        pred = get_pred(node, latest, namespace)
+        graph_node, post_add = get_graph_node(node, latest, namespace)
         if graph_node is None:
             return
         q = Quad(
-            parent.current,
+            latest.current,
             pred,
             graph_node
         )
         print(q)
-        parent.store.add(q)
+        latest.store.add(q)
         if node.parent.named_children[0] == node:
-            parent.append_current(graph_node)
+            latest.append_current(graph_node)
+        for el in post_add:
+            latest.store.add(el[0])
+            if el[1]:
+                latest.append_current(el[0].object)
     elif node.type == "parameter":
-        bn_exists_quad = next(parent.store.quads_for_pattern(
-            parent.current,
+        bn_exists_quad = next(latest.store.quads_for_pattern(
+            latest.current,
             ontology_named(ont, "hasParameters"),
             None
         ), None)
@@ -202,44 +254,45 @@ def translate_walk(node: Node,
             if not isinstance(graph_node, BlankNode):
                 raise Exception("Unreachable")
         q = Quad(
-            parent.current,
+            latest.current,
             ontology_named(ont, "hasParameters"),
             graph_node
         )
         print(q)
-        parent.store.add(q)
+        latest.store.add(q)
         if type is not None:
             q = Quad(
                 graph_node,
                 rdf_type,
                 ontology_named(ont, get_text(type))
             )
-            parent.store.add(q)
+            latest.store.add(q)
         s = graph_node
         p = ontology_named(ont, "parameterName")
         o = Literal(get_text(node))
-        exists = next(parent.store.quads_for_pattern(s, p, o), None)
+        exists = next(latest.store.quads_for_pattern(s, p, o), None)
         if exists is None:
             q = Quad(s, p, o)
-            parent.store.add(q)
+            latest.store.add(q)
     elif node.type == "statement":
         pass
-    print(parent.prev_current)
-    print(parent.amount_on_depth)
 
 
-def get_graph_node(node: Node, namespace: str) -> GraphNode | None:
+def get_graph_node(node: Node,
+                   latest: LatestNode,
+                   namespace: str) -> Tuple[GraphNode | None, List[Tuple[Quad, bool]]]:
     node_name = get_text(node)
     parent = node.parent.named_children[0] # type:ignore
-    print(node_name)
-    print(node_name in keywords)
+    end_add = []
     if get_text(parent) in keywords or\
         node_name in keywords:
-        if get_text(parent) in keywords:
-            graph_node: GraphNode | None =\
-                keywords[get_text(parent)][1](parent, node, namespace)[1]
+        if node_name in keywords:
+            out = keywords[node_name][1](parent, node, latest, namespace)
+            graph_node: GraphNode | None = out[1]
         else:
-            graph_node = keywords[node_name][1](node, node, namespace)[1]
+            out = keywords[get_text(parent)][1](parent, node, latest, namespace)
+            graph_node = out[1]
+        end_add = out[2]
     elif node_name[0] == ":" and node.parent.named_children[0] == node: # type:ignore
         sib = node.next_named_sibling
         if sib is None or sib.type != "name":
@@ -250,29 +303,48 @@ def get_graph_node(node: Node, namespace: str) -> GraphNode | None:
             graph_node = None
     elif node_name[0] == ":":
         graph_node = ontology_named(ont, node_name)
-    else:
+    elif node.parent.named_children[0] == node: # type:ignore
         graph_node = NamedNode(namespace + node_name)
-    return graph_node
+    else:
+        graph_node = None
+    return (graph_node, end_add)
 
 
-def get_pred(node: Node, namespace: str) -> NamedNode:
+def get_pred(node: Node, latest: LatestNode, namespace: str) -> NamedNode:
     orig_node = node
     while True:
-        pred = node.parent.prev_named_sibling # type:ignore
+        pred1 = node.parent.named_children[0] # type:ignore
+        if pred1 != orig_node:
+            pred_text = get_text(pred1)
+            if pred_text in keywords:
+                return keywords[pred_text][1](pred1, orig_node, latest, namespace)[0]
 
+        pred = node.parent.prev_named_sibling # type:ignore
+        while pred is not None and pred.type == "comment":
+            pred = pred.prev_named_sibling
         if pred is not None and pred.type == "name":
             pred_text = get_text(pred)
+            if pred_text in keywords:
+                return keywords[pred_text][1](pred, orig_node, latest, namespace)[0]
             if pred_text[0] == ":":
                 return ontology_named(ont, pred_text[1:len(pred_text)])
-            else:
-                return ontology_named(ont, pred_text)
-        pred = node.parent.named_children[0] # type:ignore
-        pred_text = get_text(pred)
+            # else:
+                # return ontology_named(ont, pred_text)
+
+        pred1 = node.parent.named_children[0] # type:ignore
+        pred_text = get_text(pred1)
         if pred_text[0] == ":":
             return ontology_named(ont, pred_text[1:len(pred_text)])
-        if pred_text in keywords:
-            return keywords[pred_text][1](pred, orig_node, namespace)[0]
         node = node.parent # type:ignore
+
+        # pred = node.parent.parent.named_children[0] # type:ignore
+        # if pred is not None and pred.type == "name":
+        #     pred_text = get_text(pred)
+        #     print(pred_text)
+        #     if pred_text in keywords:
+        #         return keywords[pred_text][1](pred, orig_node, latest, namespace)[0]
+        #     if pred_text[0] == ":":
+        #         return ontology_named(ont, pred_text[1:len(pred_text)])
         # raise Exception("not implemented or something")
 
 
@@ -303,10 +375,14 @@ def get_parent_statement(node: Node) -> Node:
     return node
 
 if __name__ == "__main__":
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("input_file")
+    argparser.add_argument("output_file")
+    args = argparser.parse_args()
     pddl_parser = Parser()
     pddl_parser.set_language(PDDL)
     namespace = "http://example.com/test/"
-    with open("testsub.pddl") as file:
+    with open(args.input_file) as file:
         test = file.read()
     tree = pddl_parser.parse(bytes(test, 'utf-8'))
 
@@ -330,7 +406,7 @@ if __name__ == "__main__":
     dom_prob_iri = ontology_named(ont, get_text(prob_or_dom))
     inst_iri = NamedNode(namespace + get_text(domain_name_node))
     latest = LatestNode(inst_iri, Store(), BlankNode(), 0, deque(), deque())
-    ptor = partial(translate_walk, parent=latest, namespace=namespace)
+    ptor = partial(translate_walk, latest=latest, namespace=namespace)
     # print(get_text(cursor.node))
     cursor.goto_next_sibling()
     # cursor.goto_next_sibling()
@@ -345,6 +421,6 @@ if __name__ == "__main__":
     nsm = rdfnamespace.NamespaceManager(gr)
     nsm.bind("ex", ex)
     nsm.bind("ont", ont)
-    gr.serialize("test.ttl", "turtle")
+    gr.serialize(args.output_file, "turtle")
 
 
