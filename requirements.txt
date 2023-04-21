@@ -1,0 +1,4 @@
+tree-sitter
+pyoxigraph
+rdflib
+oxrdflib
