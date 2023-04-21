@@ -99,7 +99,6 @@ def numeric_effect(parent_name: Node,
         else:
             amount_node = NamedNode(namespace + text)
         pred = rdf_value
-        print(pred)
         return (pred, amount_node, [])
     else:
         text = get_text(node)
@@ -122,18 +121,38 @@ def no_node(parent_name: Node,
     key_word = get_text(parent_name)
     return (ontology_named(ont, key_word), None, [])
 
+def init_node(parent_name: Node,
+            node: Node,
+            latest: LatestNode,
+            namespace: str) -> Tuple[NamedNode, GraphNode | None, List[Tuple[Quad, bool]]]:
+    key_word = keywords[get_text(parent_name)][0]
+    if parent_name == node:
+        text = get_text(node)
+        graph_node = NamedNode(namespace + text)
+        return (ontology_named(ont, key_word), BlankNode(), [])
+    else:
+        text = get_text(node)
+        if text in keywords:
+            key_word = keywords[text][0]
+            graph_nodes = keywords[text][1](node, node, latest, namespace)
+            return (ontology_named(ont, "predicate"), graph_nodes[1], [])
+        else:
+            graph_node = NamedNode(namespace + text)
+        return (ontology_named(ont, "predicate"), graph_node, [])
+
 logical_fn = partial(keyword_pred_and_bn, keyword_pred="logicalExpression")
 arithmetic_fn = partial(keyword_pred_and_bn, keyword_pred="arithmeticExpression")
 
 keywords: keywords_alias = {
-    "<": ("less_than", arithmetic_fn),
-    ">": ("greater_than", arithmetic_fn),
-    "<=": ("less_than_or_equal", arithmetic_fn),
-    ">=": ("less_than_or_equal", arithmetic_fn),
-    "-": ("minus", arithmetic_fn),
-    "+": ("plus", arithmetic_fn),
-    "*": ("multiply", arithmetic_fn),
-    "/": ("divide", arithmetic_fn),
+    "<": ("less_than", numeric_effect),
+    ">": ("greater_than", numeric_effect),
+    "<=": ("less_than_or_equal", numeric_effect),
+    ">=": ("less_than_or_equal", numeric_effect),
+    "=": ("equals", numeric_effect),
+    "-": ("minus", numeric_effect),
+    "+": ("plus", numeric_effect),
+    "*": ("multiply", numeric_effect),
+    "/": ("divide", numeric_effect),
     "and": ("and", logical_fn),
     "not": ("not", logical_fn),
     "or": ("or", logical_fn),
@@ -145,6 +164,7 @@ keywords: keywords_alias = {
     ":parameters": ("parameters", no_node),
     ":precondition": ("precondition", no_node),
     ":effect": ("effect", no_node),
+    ":init": ("init", init_node)
 }
 
 
@@ -296,10 +316,11 @@ def get_graph_node(node: Node,
             graph_node = None
     elif node_name[0] == ":":
         graph_node = ontology_named(ont, node_name)
-    elif node.parent.named_children[0] == node: # type:ignore
-        graph_node = NamedNode(namespace + node_name)
+    # elif node.parent.named_children[0] == node: # type:ignore
     else:
-        graph_node = None
+        graph_node = NamedNode(namespace + node_name)
+    # else:
+        # graph_node = None
     return (graph_node, end_add)
 
 
