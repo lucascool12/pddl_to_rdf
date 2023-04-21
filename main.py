@@ -214,16 +214,11 @@ def translate_walk(node: Node,
     if node.parent is None or not node.is_named or node.type == "comment":
         latest.new_depth(depth)
         return
-    # for _ in range(depth, parent.depth):
-    #     parent.pop()
     latest.new_depth(depth)
     parent_stat = get_parent_statement(node)
     state_first = statement_first(parent_stat)
     type = get_type(node.parent)
-    # if node == node.parent.named_children[0]:
-    #     pass
     if node.type == "name":
-        # print(get_pred(node, latest, namespace))
         pred = get_pred(node, latest, namespace)
         graph_node, post_add = get_graph_node(node, latest, namespace)
         if graph_node is None:
@@ -233,7 +228,6 @@ def translate_walk(node: Node,
             pred,
             graph_node
         )
-        print(q)
         latest.store.add(q)
         if node.parent.named_children[0] == node:
             latest.append_current(graph_node)
@@ -258,7 +252,6 @@ def translate_walk(node: Node,
             ontology_named(ont, "hasParameters"),
             graph_node
         )
-        print(q)
         latest.store.add(q)
         if type is not None:
             q = Quad(
@@ -337,16 +330,6 @@ def get_pred(node: Node, latest: LatestNode, namespace: str) -> NamedNode:
             return ontology_named(ont, pred_text[1:len(pred_text)])
         node = node.parent # type:ignore
 
-        # pred = node.parent.parent.named_children[0] # type:ignore
-        # if pred is not None and pred.type == "name":
-        #     pred_text = get_text(pred)
-        #     print(pred_text)
-        #     if pred_text in keywords:
-        #         return keywords[pred_text][1](pred, orig_node, latest, namespace)[0]
-        #     if pred_text[0] == ":":
-        #         return ontology_named(ont, pred_text[1:len(pred_text)])
-        # raise Exception("not implemented or something")
-
 
 def get_type(node: Node) -> Node | None:
     try:
@@ -374,6 +357,14 @@ def get_parent_statement(node: Node) -> Node:
         node = node.parent # type:ignore
     return node
 
+def next_sibling_ignore_comment(cursor: TreeCursor) -> bool:
+    if not cursor.goto_next_sibling():
+        return False
+    while cursor.node.type == "comment":
+        if not cursor.goto_next_sibling():
+            return False
+    return True
+
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("input_file")
@@ -394,8 +385,8 @@ if __name__ == "__main__":
     if def_node is None or get_text(def_node) != "define":
         raise Exception("first statement must be define")
     if not cursor.goto_first_child() or\
-            not cursor.goto_next_sibling() or\
-            not cursor.goto_next_sibling():
+            not next_sibling_ignore_comment(cursor) or\
+            not next_sibling_ignore_comment(cursor):
         raise Exception("No domain or problem definition")
     prob_or_dom = statement_first(cursor.node)
     try:
@@ -407,12 +398,7 @@ if __name__ == "__main__":
     inst_iri = NamedNode(namespace + get_text(domain_name_node))
     latest = LatestNode(inst_iri, Store(), BlankNode(), 0, deque(), deque())
     ptor = partial(translate_walk, latest=latest, namespace=namespace)
-    # print(get_text(cursor.node))
     cursor.goto_next_sibling()
-    # cursor.goto_next_sibling()
-    print(get_text(cursor.node))
-    print(cursor.node.type)
-    print(Quad(inst_iri, rdf_type, dom_prob_iri))
     latest.store.add(Quad(inst_iri, rdf_type, dom_prob_iri))
     walk_treecursor(cursor, ptor)
     gr = rdflib.ConjunctiveGraph(store=oxrdflib.OxigraphStore(store=latest.store))
