@@ -140,6 +140,24 @@ def init_node(parent_name: Node,
             graph_node = NamedNode(namespace + text)
         return (ontology_named(ont, "predicate"), graph_node, [])
 
+def predicate_node(parent_name: Node,
+            node: Node,
+            latest: LatestNode,
+            namespace: str) -> Tuple[NamedNode, GraphNode | None, List[Tuple[Quad, bool]]]:
+    key_word = keywords[get_text(parent_name)][0]
+    if parent_name == node:
+        return (ontology_named(ont, key_word), None, [])
+    else:
+        quads = []
+        graph_node = NamedNode(namespace + get_text(node))
+        quads.append((Quad(
+            graph_node,
+            rdf_type,
+            ontology_named(ont, "Predicate")
+        ), False))
+        return (ontology_named(ont, key_word), graph_node, quads)
+
+
 logical_fn = partial(keyword_pred_and_bn, keyword_pred="logicalExpression")
 arithmetic_fn = partial(keyword_pred_and_bn, keyword_pred="arithmeticExpression")
 
@@ -164,7 +182,8 @@ keywords: keywords_alias = {
     ":parameters": ("parameters", no_node),
     ":precondition": ("precondition", no_node),
     ":effect": ("effect", no_node),
-    ":init": ("init", init_node)
+    ":init": ("init", init_node),
+    ":predicates": ("hasPredicate", predicate_node),
 }
 
 
@@ -296,12 +315,23 @@ def get_graph_node(node: Node,
                    namespace: str) -> Tuple[GraphNode | None, List[Tuple[Quad, bool]]]:
     node_name = get_text(node)
     parent = node.parent.named_children[0] # type:ignore
+    if parent == node:
+        parent_parent = node.parent.parent.named_children[0] # type: ignore
+    else:
+        parent_parent = None
     end_add = []
     if get_text(parent) in keywords or\
-        node_name in keywords:
+        node_name in keywords or\
+            (parent_parent is not None and\
+             get_text(parent_parent) in keywords):
         if node_name in keywords:
             out = keywords[node_name][1](parent, node, latest, namespace)
             graph_node: GraphNode | None = out[1]
+        elif parent_parent is not None and\
+                get_text(parent_parent) in keywords:
+            out = keywords[get_text(parent_parent)][1]\
+                (parent_parent, node, latest, namespace)
+            graph_node = out[1]
         else:
             out = keywords[get_text(parent)][1](parent, node, latest, namespace)
             graph_node = out[1]
@@ -317,6 +347,8 @@ def get_graph_node(node: Node,
     elif node_name[0] == ":":
         graph_node = ontology_named(ont, node_name)
     # elif node.parent.named_children[0] == node: # type:ignore
+    elif get_text(node.parent.named_children[0])[0] == ":": # type: ignore
+        graph_node = None
     else:
         graph_node = NamedNode(namespace + node_name)
     # else:
