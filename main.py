@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Callable, Dict, TypeAlias, Tuple, Union, List
+from typing import Callable, Dict, Tuple, Union, List
+from typing_extensions import TypeAlias
 from tree_sitter import Language, Parser, TreeCursor, Node
 from pyoxigraph import Store, NamedNode, BlankNode, Quad, Literal
 from dataclasses import dataclass
@@ -25,9 +26,9 @@ rdf_type = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
 rdf_value = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#value")
 xsd_decimal = NamedNode("http://www.w3.org/2001/XMLSchema#decimal")
 
-IdentifiedNode: TypeAlias = "BlankNode | NamedNode"
-GraphNode: TypeAlias = "BlankNode | NamedNode | Literal"
-keywords_alias: TypeAlias = """Dict[str,
+IdentifiedNode = "BlankNode | NamedNode"
+GraphNode = "BlankNode | NamedNode | Literal"
+keywords_alias = """Dict[str,
                                  Tuple[
                                      str,
                                      Callable[
