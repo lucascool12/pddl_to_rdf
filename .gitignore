@@ -3,3 +3,8 @@ dist
 build
 venv
 .venv
+
+
+# Added by cargo
+
+/target
