@@ -1,3 +1,4 @@
+#! python
 from __future__ import annotations
 from typing import Callable, Dict, Tuple, Union, List
 from typing_extensions import TypeAlias
@@ -10,6 +11,8 @@ import rdflib
 import rdflib.namespace as rdfnamespace
 import oxrdflib
 import argparse
+import sys
+import os
 
 BUILD_LIB = 'build/langs.so'
 
@@ -421,14 +424,15 @@ def next_sibling_ignore_comment(cursor: TreeCursor) -> bool:
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("input_file")
-    argparser.add_argument("output_file")
+    argparser.add_argument("-i", "--input_file", nargs='?', type=argparse.FileType("r"),
+                           default=sys.stdin)
+    argparser.add_argument("-o", "--output_file", nargs='?', type=argparse.FileType("w"),
+                           default=sys.stdout)
     args = argparser.parse_args()
     pddl_parser = Parser()
     pddl_parser.set_language(PDDL)
     namespace = "http://example.com/test/"
-    with open(args.input_file) as file:
-        test = file.read()
+    test = args.input_file.read()
     tree = pddl_parser.parse(bytes(test, 'utf-8'))
 
     cursor = tree.walk()
@@ -461,6 +465,6 @@ if __name__ == "__main__":
     nsm = rdfnamespace.NamespaceManager(gr)
     nsm.bind("ex", ex)
     nsm.bind("ont", ont)
-    gr.serialize(args.output_file, "turtle")
+    args.output_file.write(gr.serialize(None, "turtle"))
 
 
