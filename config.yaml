@@ -1,0 +1,13 @@
+openapi: 3.0.2
+info:  # OpenAPI metadata
+  title: 'Example site'
+  version: 0.1.0
+x-walder-datasources:  # Default list of data sources
+paths:
+x-walder-errors:
+  404:
+    description: page not found error
+    x-walder-input-text/html: error404.html
+  500:
+    description: internal server error
+    x-walder-input-text/html: error500.html
