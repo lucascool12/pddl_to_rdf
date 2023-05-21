@@ -5,10 +5,26 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <!-- <link href="css/style.css" rel="stylesheet"> -->
+        <script src="http://rdf.js.org/comunica-browser/versions/v2/engines/query-sparql/comunica-browser.js"></script>
+        <script src="script.js"></script>
+        <style>
+            #big_container {
+                display: flex;
+                height: 80vh;
+            }
+            .big_input {
+                flex-grow: 1;
+            }
+        </style>
     </head>
     <body>
         <h1>
             Test
         </h1>
+        <div id="big_container">
+            <textarea class="big_input" id="pddl"></textarea>
+            <textarea class="big_input" id="rdf"></textarea>
+        </div>
+        <button type="button" onclick="test()">test</button>
     </body>
 </html>

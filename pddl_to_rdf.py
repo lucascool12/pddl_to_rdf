@@ -422,18 +422,12 @@ def next_sibling_ignore_comment(cursor: TreeCursor) -> bool:
             return False
     return True
 
-if __name__ == "__main__":
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument("-i", "--input_file", nargs='?', type=argparse.FileType("r"),
-                           default=sys.stdin)
-    argparser.add_argument("-o", "--output_file", nargs='?', type=argparse.FileType("w"),
-                           default=sys.stdout)
-    args = argparser.parse_args()
+def translate_pddl(text: bytes) -> str:
+    global ont
     pddl_parser = Parser()
     pddl_parser.set_language(PDDL)
     namespace = "http://example.com/test/"
-    test = args.input_file.read()
-    tree = pddl_parser.parse(bytes(test, 'utf-8'))
+    tree = pddl_parser.parse(text)
 
     cursor = tree.walk()
     cursor.goto_first_child()
@@ -465,6 +459,17 @@ if __name__ == "__main__":
     nsm = rdfnamespace.NamespaceManager(gr)
     nsm.bind("ex", ex)
     nsm.bind("ont", ont)
-    args.output_file.write(gr.serialize(None, "turtle"))
+    return gr.serialize(None, "turtle")
+
+
+if __name__ == "__main__":
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("-i", "--input_file", nargs='?', type=argparse.FileType("r"),
+                           default=sys.stdin)
+    argparser.add_argument("-o", "--output_file", nargs='?', type=argparse.FileType("w"),
+                           default=sys.stdout)
+    args = argparser.parse_args()
+    text = args.input_file.read()
+    args.output_file.write(translate_pddl(text.encode()))
 
 
