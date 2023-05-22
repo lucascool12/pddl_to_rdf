@@ -22,6 +22,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     self.send_response(http.HTTPStatus.OK)
                     self.send_header("Content-type", "text/plain")
                     self.send_header("Content-Length", str(len(rdf)))
+                    self.end_headers()
                     self.wfile.write(rdf.encode())
                 except:
                     self.send_error(http.HTTPStatus.UNPROCESSABLE_ENTITY, traceback.format_exc())
