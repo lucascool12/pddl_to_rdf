@@ -5,7 +5,8 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <!-- <link href="css/style.css" rel="stylesheet"> -->
-        <script src="http://rdf.js.org/comunica-browser/versions/v2/engines/query-sparql/comunica-browser.js"></script>
+        <script src="https://rdf.js.org/comunica-browser/versions/v2/engines/query-sparql-rdfjs/comunica-browser.js"></script>
+        <script src="https://unpkg.com/n3@1.16.4/browser/n3.min.js"></script>
         <script src="script.js"></script>
         <style>
             #big_container {
@@ -25,6 +26,8 @@
             <textarea class="big_input" id="pddl"></textarea>
             <textarea class="big_input" id="rdf"></textarea>
         </div>
-        <button type="button" onclick="test()">test</button>
+        <button type="button" onclick="translate_pddl()">test</button><br/>
+        <textarea id="sparql" id="rdf" cols="100" rows="10"></textarea><br/>
+        <button type="button" onclick="query()">query</button>
     </body>
 </html>

@@ -286,6 +286,9 @@ def translate_walk(node: Node,
         ), None)
         if bn_exists_quad is None:
             graph_node = BlankNode()
+            latest.store.add(
+                Quad(graph_node, rdf_type, ontology_named(ont, "Parameter"))
+            )
         else:
             graph_node = bn_exists_quad.object
             if not isinstance(graph_node, BlankNode):

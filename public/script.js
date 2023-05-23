@@ -1,21 +1,93 @@
-function test() {
+function translate_pddl() {
   const xhttp = new XMLHttpRequest();
   xhttp.open("POST", "/translate_pddl", true);
   xhttp.onload = function() {
     let rdf = document.getElementById("rdf");
-    window.alert(this.responseText);
-    rdf.textContent = this.responseText;
+    rdf.value = this.responseText;
   }
-  const pddl = document.getElementById("pddl").textContent;
-  console.log(pddl);
+  const pddl = document.getElementById("pddl").value;
   xhttp.send(pddl);
-  console.log("test");
+}
+
+function Bool(initialValue) {
+    var bool = !!initialValue;
+    var listeners = [];
+    var returnVal = function(value) {
+        if (arguments.length) {
+            var oldValue = bool;
+            bool = !!value;
+            listeners.forEach(function (listener, i, list) {
+                listener.call(returnVal, { oldValue: oldValue, newValue: bool });
+            });
+        }
+        return bool
+    };
+    returnVal.addListener = function(fn) {
+        if (typeof fn == "function") {
+            listeners.push(fn);
+        }
+        else {
+            throw "Not a function!";
+        }
+    };
+    return returnVal;
+}
+
+function query() {
+  console.log("here")
+  const qel = document.getElementById("sparql");
+  const query = qel.value;
+  const rdfel = document.getElementById("rdf");
+  const rdf = rdfel.value;
+  console.log(query);
+  const parser = new N3.Parser();
+  let store = new N3.Store();
+  const { namedNode, literal, defaultGraph, quad } = N3.DataFactory
+  let ready = Bool(false);
+  parser.parse(rdf,
+    function(error, triple) {
+      if (error) {
+        console.log("Parser error : " + error);
+      }
+      if (triple) {
+        store.addQuad(
+          quad(
+            triple.subject,
+            triple.predicate,
+            triple.object
+          )
+        );
+      } else {
+        console.log("Parsed.")
+        ready(true);
+      }
+    }
+  );
+  ready.addListener((e) => {
+    let d = new Comunica.QueryEngine().queryBindings(
+      query,
+      {
+        sources: [ store ],
+      }
+    );
+    d.then(function(bindingsStream) {
+      bindingsStream.on('data', (binding) => {
+        console.log(binding.toString()); // Quick way to print bindings for testing
+      })
+      bindingsStream.on('end', () => {
+        console.log("end?");
+      });
+      bindingsStream.on('error', (error) => {
+        console.error(error);
+      });
+    });
+  });
 }
 
 document.addEventListener("readystatechange", function(event) {
   let pddl = document.getElementById("pddl");
   if(pddl.textContent === null) { return }
-  pddl.textContent =
+  pddl.value =
   `; from https://github.com/yarox/pddl-examples
 (define (domain rover-domain)
     (:requirements :fluents)
@@ -155,4 +227,14 @@ document.addEventListener("readystatechange", function(event) {
                 (- (battery-capacity) (battery-amount ?rover)))
     )
 )`;
+  let sparql = document.getElementById("sparql");
+  sparql.value = `
+PREFIX ont: <http://example.com/pddl_ont/>
+PREFIX ex: <http://example.com/test/>
+SELECT ?parameter
+WHERE
+{
+  ?parameter a ont:Parameter.
+}
+  `
 })
