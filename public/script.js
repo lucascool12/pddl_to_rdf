@@ -86,10 +86,12 @@ function query() {
   let store = new N3.Store();
   const { namedNode, literal, defaultGraph, quad } = N3.DataFactory
   let ready = Bool(false);
+  try {
   parser.parse(rdf,
     function(error, triple) {
       if (error) {
-        console.log("Parser error : " + error);
+        window.alert("Parser error : " + error);
+        return;
       }
       if (triple) {
         store.addQuad(
@@ -105,6 +107,10 @@ function query() {
       }
     }
   );
+  } catch (error) {
+    window.alert("Parser error : " + error);
+    return;
+  }
   ready.addListener((e) => {
     let d = new Comunica.QueryEngine().queryBindings(
       query,
@@ -114,6 +120,7 @@ function query() {
     );
     d.then(function(bindingsStream) {
       let binding_data = [];
+      // bindingsStream.catch((error) => {window.alert(error)} );
       bindingsStream.on('data', (binding) => {
         console.log(binding.toString());
         binding_data.push(binding);
@@ -127,9 +134,11 @@ function query() {
         output_el.appendChild(table);
       });
       bindingsStream.on('error', (error) => {
-        console.error(error);
+        window.alert(error);
+        return;
       });
     });
+    d.catch((error) => {window.alert(error); return;} )
   });
 }
 
