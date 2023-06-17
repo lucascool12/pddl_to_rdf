@@ -1,12 +1,12 @@
 #! python
 from __future__ import annotations
-from typing import Callable, Dict, Tuple, Union, List
+from typing import Callable, Dict, Tuple, Union, List, Set
 from typing_extensions import TypeAlias
 from tree_sitter import Language, Parser, TreeCursor, Node
 from pyoxigraph import Store, NamedNode, BlankNode, Quad, Literal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
-from collections import deque
+from collections import deque, defaultdict
 import rdflib
 import rdflib.namespace as rdfnamespace
 import oxrdflib
@@ -24,13 +24,20 @@ Language.build_library(
 )
 PDDL = Language(BUILD_LIB, "pddl")
 
+def ontology_named(namespace: str, name: str) -> NamedNode:
+    alias = keywords.get(name)
+    if alias is not None:
+        return NamedNode(namespace + alias[0])
+    return NamedNode(namespace + name)
+
 ont = "http://example.com/pddl_ont/"
 rdf_type = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
 rdf_value = NamedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#value")
 xsd_decimal = NamedNode("http://www.w3.org/2001/XMLSchema#decimal")
 
+
 IdentifiedNode = "BlankNode | NamedNode"
-GraphNode = "BlankNode | NamedNode | Literal"
+GraphNode: TypeAlias = "BlankNode | NamedNode | Literal"
 keywords_alias = """Dict[str,
                                  Tuple[
                                      str,
@@ -169,7 +176,7 @@ keywords: keywords_alias = {
     "<": ("less_than", numeric_effect),
     ">": ("greater_than", numeric_effect),
     "<=": ("less_than_or_equal", numeric_effect),
-    ">=": ("less_than_or_equal", numeric_effect),
+    ">=": ("greater_than_or_equal", numeric_effect),
     "=": ("equals", numeric_effect),
     "-": ("minus", numeric_effect),
     "+": ("plus", numeric_effect),
@@ -194,6 +201,9 @@ keywords: keywords_alias = {
 ignore_node = {
     "comment"
 }
+
+function_class = ontology_named(ont, "Function")
+action_class = ontology_named(ont, "Action")
 
 def walk_treecursor(cursor: TreeCursor, callback: Callable[[Node, int], None]):
     root = cursor.node
@@ -229,17 +239,33 @@ class LatestNode:
     depth: int
     prev_current: deque[BlankNode | NamedNode]
     amount_on_depth: deque[int]
+    parents: Dict[str, int] = field(default_factory=lambda:defaultdict(lambda:0))
+    parent_depth: deque[str | None] = field(default_factory=lambda:deque())
 
     def append_current(self, new_current):
         self.prev_current.append(self.current)
         self.current = new_current
         self.amount_on_depth[-1] += 1
 
-    def new_depth(self, depth):
+    def new_depth(self, depth: int, node: Node):
         for _ in range(self.depth, depth):
             self.amount_on_depth.append(0)
         for _ in range(depth, self.depth):
             self.pop()
+            par = self.parent_depth.pop()
+            if par is not None:
+                self.parents[par] -= 1
+                if self.parents[par] <= 0:
+                    self.parents.pop(par)
+        if node.type == "statement":
+            par = node.named_children[0].text.decode()
+            if self.depth != depth or par not in self.parents:
+                self.parents[par] += 1
+                self.parent_depth.append(par)
+            elif self.depth != depth:
+                self.parent_depth.append(None)
+        elif self.depth < depth and len(self.parent_depth) < depth:
+            self.parent_depth.append(None)
         self.depth = depth
 
     def pop(self):
@@ -255,9 +281,9 @@ def translate_walk(node: Node,
                      latest: LatestNode,
                      namespace: str):
     if node.parent is None or not node.is_named or node.type == "comment":
-        latest.new_depth(depth)
+        latest.new_depth(depth, node)
         return
-    latest.new_depth(depth)
+    latest.new_depth(depth, node)
     parent_stat = get_parent_statement(node)
     state_first = statement_first(parent_stat)
     type = get_type(node.parent)
@@ -286,9 +312,6 @@ def translate_walk(node: Node,
         ), None)
         if bn_exists_quad is None:
             graph_node = BlankNode()
-            latest.store.add(
-                Quad(graph_node, rdf_type, ontology_named(ont, "Parameter"))
-            )
         else:
             graph_node = bn_exists_quad.object
             if not isinstance(graph_node, BlankNode):
@@ -360,6 +383,9 @@ def get_graph_node(node: Node,
         graph_node = NamedNode(namespace + node_name)
     # else:
         # graph_node = None
+    if ":functions" in latest.parents:
+        if graph_node is not None:
+            end_add.extend(function_child(node, graph_node, latest))
     return (graph_node, end_add)
 
 
@@ -391,6 +417,13 @@ def get_pred(node: Node, latest: LatestNode, namespace: str) -> NamedNode:
         node = node.parent # type:ignore
 
 
+def function_child(node: Node, subj: GraphNode, latest: LatestNode) -> List[Tuple[Quad, bool]]:
+    store = latest.store
+    if next(store.quads_for_pattern(subj, rdf_type, function_class), None) is None:
+        return [(Quad(subj, rdf_type, function_class), False)]
+    return []
+
+
 def get_type(node: Node) -> Node | None:
     try:
         type = node.named_children[-1]
@@ -405,12 +438,6 @@ def get_text(node: Node) -> str:
 
 def statement_first(node: Node) -> Node:
     return node.named_children[0]
-
-def ontology_named(namespace: str, name: str) -> NamedNode:
-    alias = keywords.get(name)
-    if alias is not None:
-        return NamedNode(namespace + alias[0])
-    return NamedNode(namespace + name)
 
 def get_parent_statement(node: Node) -> Node:
     while node.type != "statement":
@@ -449,7 +476,7 @@ def translate_pddl(text: bytes) -> str:
     except IndexError:
         raise Exception("missing domain/problem name")
     inst_name = get_text(domain_name_node)
-    dom_prob_iri = ontology_named(ont, get_text(prob_or_dom))
+    dom_prob_iri = ontology_named(ont, get_text(prob_or_dom).capitalize())
     inst_iri = NamedNode(namespace + get_text(domain_name_node))
     latest = LatestNode(inst_iri, Store(), BlankNode(), 0, deque(), deque())
     ptor = partial(translate_walk, latest=latest, namespace=namespace)
