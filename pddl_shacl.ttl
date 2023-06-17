@@ -1,0 +1,152 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ont: <http://example.com/pddl_ont/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ont_shape: <http://example.com/pddl_shapes/>.
+
+ont:Domain a rdfs:Class, sh:NodeShape;
+    sh:property [
+        sh:path ont:action;
+        sh:nodeKind sh:IRI;
+        sh:node ont:Action
+    ];
+    sh:property [
+        sh:path ont:hasPredicate;
+        sh:nodeKind sh:IRI;
+        sh:node ont:Predicate
+    ];
+    sh:property [
+        sh:path ont:functions;
+        sh:node ont:Function
+    ];
+    sh:property [
+        sh:path ont:requirements;
+        sh:nodeKind sh:IRI
+    ].
+
+ont:Function a rdfs:Class, sh:NodeShape;
+    sh:class ont:Function;
+    sh:nodeKind sh:IRI;
+    sh:property ont_shape:ParametersProp.
+
+ont:Predicate a rdfs:Class, sh:NodeShape;
+    sh:nodeKind sh:IRI;
+    sh:class ont:Predicate;
+    sh:property ont_shape:ParametersProp.
+
+ont_shape:Parameters a sh:NodeShape;
+    sh:nodeKind sh:BlankNodeOrIRI;
+    sh:property [
+        sh:path ont:parameterName;
+        sh:nodeKind sh:Literal;
+        sh:minCount 1
+    ].
+
+ont_shape:ParametersProp a sh:PropertyShape;
+    sh:path ont:hasParameters;
+    sh:node ont_shape:Parameters;
+    sh:maxCount 1.
+
+ont:Action a rdfs:Class, sh:NodeShape;
+    # sh:class ont:Action; # not implemented yet
+    sh:property ont_shape:ParametersProp;
+    sh:property [
+        sh:path ont:precondition;
+        sh:node ont_shape:LogicalExpression
+    ].
+
+ont_shape:LogicalExpression a sh:NodeShape;
+    sh:nodeKind sh:BlankNodeOrIRI;
+    sh:xone (
+        [
+   			sh:property [
+            	sh:path ont:and;
+            	sh:node ont_shape:AndorOrExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            sh:property [
+            	sh:path ont:or;
+            	sh:node ont_shape:AndorOrExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            sh:property [
+            	sh:path ont:not;
+            	sh:node ont_shape:NotExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            sh:property [
+            	sh:path ont:greater_than;
+            	sh:node ont_shape:CompareExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            sh:property [
+            	sh:path ont:less_than;
+            	sh:node ont_shape:CompareExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            sh:property [
+            	sh:path ont:less_than_or_equal;
+            	sh:node ont_shape:CompareExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            sh:property [
+            	sh:path ont:greater_than_or_equal;
+            	sh:node ont_shape:CompareExpression;
+                sh:minCount 1;
+                sh:maxCount 1
+            ]
+        ]
+        [
+            a sh:NodeShape;
+            sh:node ont:Predicate
+        ]
+    ).
+
+ont_shape:AndorOrExpression a sh:NodeShape;
+    sh:nodeKind sh:BlankNodeOrIRI;
+    sh:property [
+        sh:path rdf:value;
+        sh:node ont_shape:LogicalExpression;
+        sh:minCount 1
+    ].
+
+ont_shape:NotExpression a sh:NodeShape;
+    sh:nodeKind sh:BlankNodeOrIRI;
+    sh:property [
+        sh:path rdf:value;
+        sh:node ont_shape:LogicalExpression;
+        sh:minCount 1;
+        sh:maxCount 1
+    ].
+
+ont_shape:CompareExpression a sh:NodeShape;
+    sh:nodeKind sh:BlankNodeOrIRI;
+    sh:property [
+        sh:path ont:with;
+        sh:minCount 1;
+        sh:maxCount 1
+    ];
+    sh:property [
+        sh:path rdf:value;
+        sh:minCount 1;
+        sh:maxCount 1
+    ].
