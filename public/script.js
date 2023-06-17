@@ -33,6 +33,48 @@ function Bool(initialValue) {
     return returnVal;
 }
 
+// from https://stackdiary.com/tutorials/create-table-javascript/
+function createTableFromObjects(data) {
+  const table = document.createElement('table');
+  const headerRow = document.createElement('tr');
+  
+  // Create table header row
+  if (data.length <= 0) {
+    const headerCell = document.createElement('th');
+    headerCell.textContent = "No results";
+    headerRow.appendChild(headerCell);
+    table.appendChild(headerRow);
+    return table
+  }
+  const keys = data[0].keys();
+  for (const key of keys) {
+    const headerCell = document.createElement('th');
+    headerCell.textContent = key.value;
+    headerRow.appendChild(headerCell);
+  }
+  table.appendChild(headerRow);
+
+  // Create table data rows
+  for (const obj of data) {
+    const dataRow = document.createElement('tr');
+    console.debug(obj);
+    const keys = data[0].keys();
+    for (const key of keys) {
+      const dataCell = document.createElement('td');
+      if (obj.has(key)) {
+        dataCell.textContent = obj.get(key).value;
+      } else {
+        dataCell.textContent = "";
+      }
+      console.debug(obj.get(key));
+      dataRow.appendChild(dataCell);
+    }
+    table.appendChild(dataRow);
+  }
+
+  return table;
+}
+
 function query() {
   console.log("here")
   const qel = document.getElementById("sparql");
@@ -71,11 +113,18 @@ function query() {
       }
     );
     d.then(function(bindingsStream) {
+      let binding_data = [];
       bindingsStream.on('data', (binding) => {
-        console.log(binding.toString()); // Quick way to print bindings for testing
+        console.log(binding.toString());
+        binding_data.push(binding);
       })
       bindingsStream.on('end', () => {
-        console.log("end?");
+        let output_el = document.getElementById("sparql_output");
+        if (output_el.firstElementChild !== null) {
+          output_el.removeChild(output_el.firstElementChild);
+        }
+        let table = createTableFromObjects(binding_data);
+        output_el.appendChild(table);
       });
       bindingsStream.on('error', (error) => {
         console.error(error);
@@ -228,13 +277,12 @@ document.addEventListener("readystatechange", function(event) {
     )
 )`;
   let sparql = document.getElementById("sparql");
-  sparql.value = `
-PREFIX ont: <http://example.com/pddl_ont/>
+  sparql.value = `PREFIX ont: <http://example.com/pddl_ont/>
 PREFIX ex: <http://example.com/test/>
-SELECT ?parameter
+SELECT ?p ?name
 WHERE
 {
-  ?parameter a ont:Parameter.
-}
-  `
+  ?p a ont:Function.
+  OPTIONAL { ?p ont:hasParameters/ont:parameterName ?name. }
+}`
 })

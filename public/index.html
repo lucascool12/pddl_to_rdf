@@ -15,6 +15,10 @@
             }
             .big_input {
                 flex-grow: 1;
+                width: 0.5vw;
+            }
+            #sparql_output th, td {
+                border: 1px solid black;
             }
         </style>
     </head>
@@ -27,7 +31,10 @@
             <textarea class="big_input" id="rdf"></textarea>
         </div>
         <button type="button" onclick="translate_pddl()">test</button><br/>
-        <textarea id="sparql" id="rdf" cols="100" rows="10"></textarea><br/>
+        <div id="big_container">
+            <textarea id="sparql" class="big_input" cols="100" rows="10"></textarea><br/>
+            <div id="sparql_output" class="big_input" style="overflow: scroll;"></div><br/>
+        </div>
         <button type="button" onclick="query()">query</button>
     </body>
 </html>
