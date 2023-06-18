@@ -214,14 +214,17 @@ def walk_treecursor(cursor: TreeCursor, callback: Callable[[Node, int], None]):
         if not cursor.goto_first_child():
             if cursor.goto_next_sibling():
                 continue
-            if not cursor.goto_parent():
-                break
-            else:
-                # if cursor.node == root:
-                    # break
-                if not cursor.goto_next_sibling():
+            stop = False
+            while depth >= 0:
+                if not cursor.goto_parent():
+                    stop = True
                     break
-                depth -= 1
+                else:
+                    depth -= 1
+                    if cursor.goto_next_sibling():
+                        break
+            if stop is True or depth < 0 or cursor.node == root:
+                break
         else:
             depth += 1
 
@@ -287,7 +290,7 @@ def translate_walk(node: Node,
     parent_stat = get_parent_statement(node)
     state_first = statement_first(parent_stat)
     type = get_type(node.parent)
-    if node.type == "name":
+    if node.type == "name" and node.parent.type != "type":
         pred = get_pred(node, latest, namespace)
         graph_node, post_add = get_graph_node(node, latest, namespace)
         if graph_node is None:
@@ -429,7 +432,7 @@ def get_type(node: Node) -> Node | None:
         type = node.named_children[-1]
         if type.type != "type":
             return None
-        return type
+        return type.named_children[0]
     except IndexError:
         return None
 
