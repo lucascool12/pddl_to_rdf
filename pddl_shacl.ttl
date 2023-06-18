@@ -25,6 +25,15 @@ ont:Domain a rdfs:Class, sh:NodeShape;
         sh:nodeKind sh:IRI
     ].
 
+ont:action a rdfs:Property;
+    rdfs:comment "A relation between a Domain and an Action.".
+
+ont:hasPredicate a rdfs:Property;
+    rdfs:comment "A relation between a Domain and a Predicate.".
+
+ont:functions a rdfs:Property;
+    rdfs:comment "A relation between a Domain and a Function".
+
 ont:Function a rdfs:Class, sh:NodeShape;
     sh:class ont:Function;
     sh:nodeKind sh:IRI;
@@ -43,10 +52,16 @@ ont_shape:Parameters a sh:NodeShape;
         sh:minCount 1
     ].
 
+ont:parameterName a rdfs:Property;
+    rdfs:comment "Relates a parameter with a name.".
+
 ont_shape:ParametersProp a sh:PropertyShape;
     sh:path ont:hasParameters;
     sh:node ont_shape:Parameters;
     sh:maxCount 1.
+
+ont:hasParameters a rdfs:Property;
+    rdfs:comment "Relates a Predicate or Function with Parameters.".
 
 ont:Action a rdfs:Class, sh:NodeShape;
     # sh:class ont:Action; # not implemented yet
@@ -55,6 +70,9 @@ ont:Action a rdfs:Class, sh:NodeShape;
         sh:path ont:precondition;
         sh:node ont_shape:LogicalExpression
     ].
+
+ont:precondition a rdfs:Property;
+    rdfs:comment "Relates a logical expression to an Action".
 
 ont_shape:LogicalExpression a sh:NodeShape;
     sh:nodeKind sh:BlankNodeOrIRI;
@@ -120,6 +138,18 @@ ont_shape:LogicalExpression a sh:NodeShape;
             sh:node ont:Predicate
         ]
     ).
+
+ont:and a rdfs:Property;
+    rdfs:comment "logical and".
+
+ont:or a rdfs:Property;
+    rdfs:comment "logical or".
+
+ont:greater_than a rdfs:Property;
+    rdfs:comment "greater than property".
+
+ont:less_than a rdfs:Property;
+    rdfs:comment "less than property".
 
 ont_shape:AndorOrExpression a sh:NodeShape;
     sh:nodeKind sh:BlankNodeOrIRI;
