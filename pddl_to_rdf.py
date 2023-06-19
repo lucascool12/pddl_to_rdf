@@ -486,6 +486,8 @@ def translate_pddl(text: bytes) -> str:
     cursor.goto_next_sibling()
     latest.store.add(Quad(inst_iri, rdf_type, dom_prob_iri))
     walk_treecursor(cursor, ptor)
+    for q in latest.store.quads_for_pattern(None, ontology_named(ont, "action"), None):
+        latest.store.add(Quad(q.object, rdf_type, action_class))
     gr = rdflib.ConjunctiveGraph(store=oxrdflib.OxigraphStore(store=latest.store))
     ex = rdflib.Namespace(namespace)
     ont = rdflib.Namespace(ont)
