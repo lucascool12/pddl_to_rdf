@@ -64,7 +64,7 @@ ont:hasParameters a rdfs:Property;
     rdfs:comment "Relates a Predicate or Function with Parameters.".
 
 ont:Action a rdfs:Class, sh:NodeShape;
-    # sh:class ont:Action; # not implemented yet
+    sh:class ont:Action; # not implemented yet
     sh:property ont_shape:ParametersProp;
     sh:property [
         sh:path ont:precondition;
